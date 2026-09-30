@@ -71,7 +71,10 @@ function Tarjeta({ titulo, valor, detalle, tono, onClick, activa }) {
 
 const ETIQUETA_ESTADO = { activa: "Activa", vencida: "Vencida", suspendida: "Suspendida" };
 
-function Estado({ estado, dias }) {
+function Estado({ estado, dias, sinTimbres }) {
+  if (estado === "activa" && sinTimbres) {
+    return <span className="insignia insignia-vencida" title="Bloqueado hasta que le asignes timbres">Sin timbres</span>;
+  }
   if (estado === "activa" && dias !== null && dias <= 15) {
     return <span className="insignia insignia-aviso">Vence pronto</span>;
   }
@@ -247,7 +250,7 @@ function Tablero({ sesion, onSalir }) {
                         <div className="sub">{c.rfcs_usados} de {c.max_rfcs} RFC</div>
                       </td>
                       <td><Vigencia iso={c.vigencia_hasta} /></td>
-                      <td><Estado estado={c.estado} dias={diasRestantes(c.vigencia_hasta)} /></td>
+                      <td><Estado estado={c.estado} dias={diasRestantes(c.vigencia_hasta)} sinTimbres={c.sin_timbres} /></td>
                       <td><Timbres saldo={c.saldo} /></td>
                       <td><UltimaAsignacion a={c.ultima_asignacion} /></td>
                       <td className="der">

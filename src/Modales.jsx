@@ -166,7 +166,9 @@ export function ModalAlta({ bolsa, onCerrar, onCreado }) {
             </Campo>
           )}
           <Campo etiqueta="Timbres iniciales"
-            ayuda={disponiblesBolsa !== null ? `Tu bolsa en SW tiene ${num(disponiblesBolsa)} disponibles` : "Puedes asignarlos después"}>
+            ayuda={Number(f.timbres) === 0
+              ? "Sin timbres el cliente no podrá entrar hasta que se los asignes"
+              : disponiblesBolsa !== null ? `Tu bolsa en SW tiene ${num(disponiblesBolsa)} disponibles` : ""}>
             <input type="number" min={0} value={f.timbres} onChange={set("timbres")} />
           </Campo>
         </div>
