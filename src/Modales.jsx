@@ -417,6 +417,160 @@ export function ModalHistorial({ cuenta, onCerrar }) {
   );
 }
 
+// ───────────────────────────── usuarios del cliente (roles) ─────────────────────────────
+const ROLES_CUENTA = [["admin", "Administrador"], ["escritura", "Facturista"], ["lectura", "Solo consulta"]];
+const INSIGNIA_ROL = { admin: "insignia-activa", escritura: "insignia-aviso", lectura: "insignia-suspendida" };
+const NOMBRE_ROL = Object.fromEntries(ROLES_CUENTA);
+
+function FormUsuarioCliente({ cuenta, empresas, inicial, onListo, onCancelar, onCredenciales }) {
+  const editando = !!inicial;
+  const [f, setF] = useState(() => ({
+    email: inicial?.email || "", nombre: inicial?.nombre || "", rol: inicial?.rol || "escritura",
+    todas: inicial ? inicial.todas_empresas : true, empresas: inicial?.empresas || [],
+  }));
+  const [error, setError] = useState("");
+  const [ocupado, setOcupado] = useState(false);
+  const alternarEmpresa = (id) => setF((x) => ({
+    ...x, empresas: x.empresas.includes(id) ? x.empresas.filter((i) => i !== id) : [...x.empresas, id],
+  }));
+
+  const guardar = async (e) => {
+    e.preventDefault();
+    const todas = f.rol === "admin" || f.todas;
+    if (!editando && !EMAIL_RE.test(f.email.trim())) { setError("Escribe un correo válido."); return; }
+    if (!todas && f.empresas.length === 0) { setError("Elige al menos una empresa, o marca todas."); return; }
+    setError("");
+    setOcupado(true);
+    const cuerpo = { nombre: f.nombre.trim() || null, rol: f.rol, todas_empresas: todas, empresas: todas ? [] : f.empresas };
+    try {
+      if (editando) {
+        await api(`/admin/cuentas/${cuenta.id}/usuarios/${inicial.id}`, { metodo: "PUT", cuerpo });
+        onListo();
+      } else {
+        const r = await api(`/admin/cuentas/${cuenta.id}/usuarios`, { metodo: "POST", cuerpo: { ...cuerpo, email: f.email.trim() } });
+        onListo();
+        onCredenciales({ usuario: r.email, password_temporal: r.password_temporal, correo_enviado: r.correo_enviado,
+          nombre: r.nombre || r.email, titulo: "Usuario agregado" });
+      }
+    } catch (err) {
+      setError(err.message);
+      setOcupado(false);
+    }
+  };
+
+  return (
+    <form className="form panel-usuario" onSubmit={guardar}>
+      <h3>{editando ? `Editar a ${inicial.email}` : "Nuevo usuario"}</h3>
+      <div className="rejilla">
+        {!editando && (
+          <Campo etiqueta="Correo (será su usuario)" ayuda="Le llegará una contraseña temporal">
+            <input type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} autoFocus />
+          </Campo>
+        )}
+        <Campo etiqueta="Nombre">
+          <input value={f.nombre} onChange={(e) => setF({ ...f, nombre: e.target.value })} />
+        </Campo>
+        <Campo etiqueta="Rol" ancho="doble">
+          <Opciones valor={f.rol} onCambio={(rol) => setF({ ...f, rol })} opciones={ROLES_CUENTA} />
+        </Campo>
+      </div>
+      {f.rol === "admin" ? (
+        <p className="sub">El administrador tiene acceso a todas las empresas de la cuenta.</p>
+      ) : (
+        <Campo etiqueta="Empresas que puede usar">
+          <label className="check">
+            <input type="checkbox" checked={f.todas} onChange={(e) => setF({ ...f, todas: e.target.checked })} />
+            Todas las empresas
+          </label>
+          {!f.todas && (
+            <div className="lista-check">
+              {empresas.map((em) => (
+                <label key={em.id} className="check">
+                  <input type="checkbox" checked={f.empresas.includes(em.id)} onChange={() => alternarEmpresa(em.id)} />
+                  <code>{em.rfc}</code> {em.razon_social}
+                </label>
+              ))}
+            </div>
+          )}
+        </Campo>
+      )}
+      {error && <div className="alerta alerta-error">{error}</div>}
+      <div className="confirmar-botones">
+        <button type="button" className="btn" onClick={onCancelar} disabled={ocupado}>Cancelar</button>
+        <button className="btn btn-primario" disabled={ocupado}>{ocupado ? "Guardando…" : editando ? "Guardar" : "Agregar usuario"}</button>
+      </div>
+    </form>
+  );
+}
+
+function UsuariosCliente({ cuenta, detalle, onCambio, onCredenciales }) {
+  const [form, setForm] = useState(null); // "nuevo" | usuario
+  const [error, setError] = useState("");
+  const [ocupado, setOcupado] = useState(null);
+  const rfcDe = (id) => (detalle.empresas.find((e) => e.id === id) || {}).rfc || `#${id}`;
+
+  const accion = async (u, fn) => {
+    setOcupado(u.id);
+    setError("");
+    try {
+      await fn();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setOcupado(null);
+    }
+  };
+  const alternar = (u) => accion(u, async () => {
+    await api(`/admin/cuentas/${cuenta.id}/usuarios/${u.id}`, { metodo: "PUT", cuerpo: { activo: !u.activo } });
+    onCambio();
+  });
+  const restablecer = (u) => accion(u, async () => {
+    const r = await api(`/admin/cuentas/${cuenta.id}/usuarios/${u.id}/restablecer`, { metodo: "POST" });
+    onCredenciales({ ...r, nombre: u.nombre || u.email, titulo: "Contraseña restablecida" });
+  });
+
+  return (
+    <>
+      <div className="detalle-cabeza">
+        <h3>Usuarios ({detalle.usuarios.length})</h3>
+        {!form && <button className="btn btn-chico" onClick={() => setForm("nuevo")}>+ Agregar usuario</button>}
+      </div>
+      {form && (
+        <FormUsuarioCliente cuenta={cuenta} empresas={detalle.empresas.filter((e) => e.activo)}
+          inicial={form === "nuevo" ? null : form} onCancelar={() => setForm(null)}
+          onListo={() => { setForm(null); onCambio(); }} onCredenciales={onCredenciales} />
+      )}
+      {error && <div className="alerta alerta-error">{error}</div>}
+      <div className="tabla-envoltura">
+        <table className="tabla tabla-usuarios">
+          <thead><tr><th>Usuario</th><th>Rol</th><th>Empresas</th><th className="der">Acciones</th></tr></thead>
+          <tbody>
+            {detalle.usuarios.map((u) => (
+              <tr key={u.id}>
+                <td>
+                  <div>{u.email}{!u.activo && <span className="insignia insignia-suspendida">Inactivo</span>}</div>
+                  <div className="sub">{u.nombre ? `${u.nombre} · ` : ""}{u.ultimo_acceso ? `Último acceso ${fechaHora(u.ultimo_acceso)}` : "Nunca ha entrado"}</div>
+                </td>
+                <td><span className={`insignia ${INSIGNIA_ROL[u.rol] || "insignia-suspendida"}`}>{NOMBRE_ROL[u.rol] || u.rol}</span></td>
+                <td className="sub">{u.todas_empresas ? "Todas" : u.empresas.map(rfcDe).join(", ")}</td>
+                <td className="der">
+                  <div className="acciones">
+                    <button className="btn btn-chico" onClick={() => setForm(u)} disabled={!!form}>Editar</button>
+                    <button className="btn btn-chico" onClick={() => restablecer(u)} disabled={ocupado === u.id}>Contraseña</button>
+                    <button className={`btn btn-chico ${u.activo ? "btn-peligro" : ""}`} onClick={() => alternar(u)} disabled={ocupado === u.id}>
+                      {u.activo ? "Desactivar" : "Activar"}
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
 // ───────────────────────────── detalle ─────────────────────────────
 export function ModalDetalle({ cuenta, onCerrar, onCambio, onCredenciales }) {
   const [d, setD] = useState(null);
@@ -544,21 +698,8 @@ export function ModalDetalle({ cuenta, onCerrar, onCambio, onCredenciales }) {
               </tbody>
             </table>
           </div>
-          <h3>Usuarios</h3>
-          <div className="tabla-envoltura">
-            <table className="tabla">
-              <thead><tr><th>Correo</th><th>Nombre</th><th>Último acceso</th></tr></thead>
-              <tbody>
-                {d.usuarios.map((u) => (
-                  <tr key={u.id}>
-                    <td>{u.email}{!u.activo && <span className="insignia insignia-suspendida">Inactivo</span>}</td>
-                    <td>{u.nombre || "—"}</td>
-                    <td>{u.ultimo_acceso ? fechaHora(u.ultimo_acceso) : <span className="tenue">Nunca ha entrado</span>}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <UsuariosCliente cuenta={cuenta} detalle={d} onCredenciales={onCredenciales}
+            onCambio={() => { cargar(); onCambio(); }} />
         </div>
       )}
 

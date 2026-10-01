@@ -280,7 +280,7 @@ function Tablero({ sesion, onSalir }) {
       {modal?.tipo === "historial" && <ModalHistorial cuenta={modal.cuenta} onCerrar={cerrar} />}
       {modal?.tipo === "detalle" && (
         <ModalDetalle cuenta={modal.cuenta} onCerrar={cerrar} onCambio={cargar}
-          onCredenciales={(datos) => abrir("credenciales", null, { ...datos, titulo: "Acceso restablecido" })} />
+          onCredenciales={(datos) => abrir("credenciales", null, { titulo: "Acceso restablecido", ...datos })} />
       )}
     </div>
   );

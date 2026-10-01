@@ -249,3 +249,12 @@ td > .insignia:first-child { margin-left: 0; }
   .datos dd { margin-bottom: 8px; }
   .modal-fondo { padding: 16px 8px; }
 }
+
+/* ── usuarios del cliente (roles) ── */
+.panel-usuario { padding: 14px; border: 1px solid var(--borde); border-radius: 10px; background: #f8fafc; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--texto); cursor: pointer; }
+.check input { width: auto; height: auto; }
+.lista-check { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px solid var(--borde); border-radius: 8px; background: var(--superficie); }
+.tabla-usuarios td { vertical-align: top; }
+.tabla-usuarios .acciones { flex-wrap: wrap; }
+.tabla-usuarios td:first-child { word-break: break-all; min-width: 180px; }
