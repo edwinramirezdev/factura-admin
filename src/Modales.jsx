@@ -86,6 +86,7 @@ export function ModalAlta({ bolsa, onCerrar, onCreado }) {
   if (!/^\d{5}$/.test(f.cp)) problemas.push("el código postal (5 dígitos)");
   if (!(maxRfcs >= 1 && maxRfcs <= 500)) problemas.push("un número de RFC entre 1 y 500");
   if (f.modoVigencia === "fecha" && !f.fecha) problemas.push("la fecha de vencimiento");
+  if (f.modoVigencia === "sin" && Number(f.timbres) === 0) problemas.push("timbres iniciales (una cuenta sin vigencia solo funciona con timbres)");
   if (Number(f.timbres) < 0) problemas.push("timbres iniciales en 0 o más");
 
   useEffect(() => {
@@ -109,6 +110,7 @@ export function ModalAlta({ bolsa, onCerrar, onCreado }) {
         empresa: { rfc, razon_social: f.razon.trim(), regimen_fiscal: f.regimen, codigo_postal: f.cp },
       };
       if (f.modoVigencia === "meses") cuerpo.meses = f.meses;
+      else if (f.modoVigencia === "sin") cuerpo.sin_vigencia = true;
       else cuerpo.vigencia_hasta = f.fecha;
       const datos = await api("/admin/cuentas", { metodo: "POST", cuerpo });
       onCreado(datos);
@@ -154,9 +156,13 @@ export function ModalAlta({ bolsa, onCerrar, onCreado }) {
           )}
           <Campo etiqueta="Vigencia de la renta" ancho="doble">
             <Opciones valor={f.modoVigencia} onCambio={set("modoVigencia")}
-              opciones={[["meses", "Por meses"], ["fecha", "Fecha exacta"]]} />
+              opciones={[["meses", "Por meses"], ["fecha", "Fecha exacta"], ["sin", "Sin vigencia"]]} />
           </Campo>
-          {f.modoVigencia === "meses" ? (
+          {f.modoVigencia === "sin" ? (
+            <Campo etiqueta="Sin vencimiento" ancho="doble">
+              <div className="sub">No vence por fecha: el cliente usa el sistema mientras tenga timbres y se bloquea al quedarse sin ellos. Sirve para vender solo timbres.</div>
+            </Campo>
+          ) : f.modoVigencia === "meses" ? (
             <Campo etiqueta="Meses" ayuda={vence ? `Vence el ${fecha(vence.toISOString())}` : ""} ancho="doble">
               <Opciones valor={f.meses} onCambio={set("meses")} opciones={MESES} />
             </Campo>
@@ -326,7 +332,7 @@ export function ModalVigencia({ cuenta, onCerrar, onListo }) {
     setEnviando(true);
     try {
       await api(`/admin/cuentas/${cuenta.id}/vigencia`, {
-        metodo: "POST", cuerpo: modo === "meses" ? { meses } : { fecha: fechaExacta },
+        metodo: "POST", cuerpo: modo === "meses" ? { meses } : modo === "sin" ? { sin_vigencia: true } : { fecha: fechaExacta },
       });
       onListo();
     } catch (err) {
@@ -343,11 +349,16 @@ export function ModalVigencia({ cuenta, onCerrar, onListo }) {
       </>}>
       <div className="saldo-fila">
         <div><span className="sub">Vence actualmente</span><b>{actual ? fecha(cuenta.vigencia_hasta) : "Sin vencimiento"}</b></div>
-        <div><span className="sub">Nueva fecha</span><b className="txt-ok">{nueva ? fecha(nueva.toISOString()) : "—"}</b></div>
+        <div><span className="sub">Nueva fecha</span><b className="txt-ok">{modo === "sin" ? "Sin vencimiento" : nueva ? fecha(nueva.toISOString()) : "—"}</b></div>
       </div>
       <form id="form-vigencia" className="form" onSubmit={enviar}>
-        <Opciones valor={modo} onCambio={setModo} opciones={[["meses", "Renovar por meses"], ["fecha", "Fecha exacta"]]} />
-        {modo === "meses" ? (
+        <Opciones valor={modo} onCambio={setModo} opciones={[["meses", "Renovar por meses"], ["fecha", "Fecha exacta"], ["sin", "Sin vigencia"]]} />
+        {modo === "sin" ? (
+          <div className="alerta alerta-aviso">
+            La cuenta deja de vencer por fecha. El cliente podrá usar el sistema mientras tenga timbres
+            y se bloqueará al quedarse sin ellos. Sirve para vender solo timbres.
+          </div>
+        ) : modo === "meses" ? (
           <Campo etiqueta="Meses a sumar"
             ayuda={actual && actual > ahora ? "Se suman a partir del vencimiento actual" : "Como ya venció (o no tenía fecha), se cuentan desde hoy"}>
             <Opciones valor={meses} onCambio={setMeses} opciones={MESES} />
