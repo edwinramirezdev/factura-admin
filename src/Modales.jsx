@@ -583,6 +583,109 @@ function UsuariosCliente({ cuenta, detalle, onCambio, onCredenciales }) {
 }
 
 // ───────────────────────────── detalle ─────────────────────────────
+// ───────────────────────────── empresas ─────────────────────────────
+// Tabla de empresas con eliminar y restaurar. Antes de cualquiera de las dos se pide confirmación.
+function TablaEmpresas({ empresas, onCambio }) {
+  const [confirmar, setConfirmar] = useState(null); // { accion: "eliminar" | "restaurar", empresa }
+  const [ocupado, setOcupado] = useState(false);
+  const [error, setError] = useState("");
+  const [aviso, setAviso] = useState("");
+
+  const pedir = (accion, empresa) => { setError(""); setAviso(""); setConfirmar({ accion, empresa }); };
+  const ejecutar = async () => {
+    const { accion, empresa } = confirmar;
+    setOcupado(true);
+    setError("");
+    try {
+      const r = accion === "eliminar"
+        ? await api(`/admin/empresas/${empresa.id}`, { metodo: "DELETE" })
+        : await api(`/admin/empresas/${empresa.id}/restaurar`, { metodo: "POST" });
+      await onCambio();
+      setConfirmar(null);
+      setAviso(r?.mensaje || "Listo.");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setOcupado(false);
+    }
+  };
+
+  const e = confirmar?.empresa;
+  const eliminando = confirmar?.accion === "eliminar";
+  return (
+    <>
+      {error && <div className="alerta alerta-error">{error}</div>}
+      {aviso && !confirmar && <div className="alerta alerta-ok">{aviso}</div>}
+      {confirmar && (
+        <div className={`confirmar ${eliminando ? "confirmar-peligro" : ""}`} role="alertdialog" aria-label="Confirmar">
+          <p><b>{eliminando ? "¿Eliminar la empresa" : "¿Restaurar la empresa"} {e.rfc} · {e.razon_social}?</b></p>
+          {eliminando && e.comprobantes > 0 && (
+            <p>
+              Tiene {num(e.comprobantes)} comprobante{e.comprobantes === 1 ? "" : "s"} timbrado{e.comprobantes === 1 ? "" : "s"}: se
+              conservan guardados, pero el cliente dejará de ver la empresa, sus comprobantes, sus clientes y sus productos.
+              Se borra su certificado (CSD) y se libera un lugar de su plan. Podrás restaurarla después.
+            </p>
+          )}
+          {eliminando && !e.comprobantes && (
+            <p>
+              No tiene comprobantes timbrados: se borra por completo, junto con sus clientes, productos, series y borradores.
+              Esta acción no se puede deshacer.
+            </p>
+          )}
+          {!eliminando && (
+            <p>El cliente volverá a ver la empresa con sus comprobantes y ocupará un lugar de su plan. Tendrá que cargar de nuevo su certificado (CSD).</p>
+          )}
+          <div className="confirmar-botones">
+            <button className="btn" onClick={() => setConfirmar(null)} disabled={ocupado}>Cancelar</button>
+            <button className={`btn ${eliminando ? "btn-peligro" : "btn-primario"}`} onClick={ejecutar} disabled={ocupado}>
+              {ocupado ? "Un momento…" : eliminando ? "Sí, eliminar" : "Sí, restaurar"}
+            </button>
+          </div>
+        </div>
+      )}
+      {empresas.length === 0 ? <div className="vacio">Sin empresas.</div> : (
+        <div className="tabla-envoltura">
+          <table className="tabla">
+            <thead><tr><th>RFC</th><th>Razón social</th><th>Certificado (CSD)</th><th>Comprobantes</th><th className="der">Acciones</th></tr></thead>
+            <tbody>
+              {empresas.map((x) => (
+                <tr key={x.id}>
+                  <td><code>{x.rfc}</code>{!x.activo && <span className="insignia insignia-suspendida">Eliminada</span>}</td>
+                  <td>{x.razon_social}</td>
+                  <td>{!x.activo ? <span className="tenue">—</span> : x.tiene_csd ? `Vence ${fecha(x.csd_valido_hasta)}` : <span className="txt-aviso">Sin cargar</span>}</td>
+                  <td>{num(x.comprobantes || 0)}</td>
+                  <td className="der">
+                    {x.activo
+                      ? <button className="btn btn-chico btn-peligro" onClick={() => pedir("eliminar", x)} disabled={ocupado}>Eliminar</button>
+                      : <button className="btn btn-chico" onClick={() => pedir("restaurar", x)} disabled={ocupado}>Restaurar</button>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
+  );
+}
+
+// Empresas de la cuenta propia del administrador del servicio (no está en la lista de clientes)
+export function ModalMisEmpresas({ onCerrar }) {
+  const [d, setD] = useState(null);
+  const [error, setError] = useState("");
+  const cargar = () => api("/admin/mis-empresas").then(setD).catch((e) => setError(e.message));
+  useEffect(() => { cargar(); }, []);
+  const activas = d ? d.empresas.filter((e) => e.activo).length : 0;
+  return (
+    <Modal titulo="Mis empresas" subtitulo={d ? `${d.cuenta} · ${activas} de ${d.max_rfcs} RFC en uso` : ""} onCerrar={onCerrar} ancho={820}
+      pie={<button className="btn" onClick={onCerrar}>Cerrar</button>}>
+      {error && <div className="alerta alerta-error">{error}</div>}
+      {!d && !error && <div className="vacio">Cargando…</div>}
+      {d && <div className="detalle"><TablaEmpresas empresas={d.empresas} onCambio={cargar} /></div>}
+    </Modal>
+  );
+}
+
 export function ModalDetalle({ cuenta, onCerrar, onCambio, onCredenciales }) {
   const [d, setD] = useState(null);
   const [error, setError] = useState("");
@@ -694,21 +797,8 @@ export function ModalDetalle({ cuenta, onCerrar, onCambio, onCredenciales }) {
           </dl>
           <h3>Timbres</h3>
           <SaldoActual saldo={d.saldo} />
-          <h3>Empresas ({d.empresas.length})</h3>
-          <div className="tabla-envoltura">
-            <table className="tabla">
-              <thead><tr><th>RFC</th><th>Razón social</th><th>Certificado (CSD)</th></tr></thead>
-              <tbody>
-                {d.empresas.map((e) => (
-                  <tr key={e.id}>
-                    <td><code>{e.rfc}</code>{!e.activo && <span className="insignia insignia-suspendida">Inactiva</span>}</td>
-                    <td>{e.razon_social}</td>
-                    <td>{e.tiene_csd ? `Vence ${fecha(e.csd_valido_hasta)}` : <span className="txt-aviso">Sin cargar</span>}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <h3>Empresas ({d.empresas.filter((e) => e.activo).length})</h3>
+          <TablaEmpresas empresas={d.empresas} onCambio={async () => { await cargar(); onCambio(); }} />
           <UsuariosCliente cuenta={cuenta} detalle={d} onCredenciales={onCredenciales}
             onCambio={() => { cargar(); onCambio(); }} />
         </div>

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, guardarSesion, iniciarSesion, sesionGuardada } from "./api.js";
 import { diasRestantes, fecha, num, nombrePlan } from "./utiles.js";
 import {
-  ModalAlta, ModalCredenciales, ModalDetalle, ModalHistorial, ModalTimbres, ModalVigencia,
+  ModalAlta, ModalCredenciales, ModalDetalle, ModalHistorial, ModalMisEmpresas, ModalTimbres, ModalVigencia,
 } from "./Modales.jsx";
 
 // ───────────────────────────── inicio de sesión ─────────────────────────────
@@ -208,6 +208,7 @@ function Tablero({ sesion, onSalir }) {
             <input className="buscador" placeholder="Buscar por nombre, correo o teléfono…"
               value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
             <button className="btn" onClick={cargar} disabled={cargando}>{cargando ? "Actualizando…" : "Actualizar"}</button>
+            <button className="btn" onClick={() => abrir("mis-empresas")}>Mis empresas</button>
             <button className="btn btn-primario" onClick={() => abrir("alta")}>+ Nuevo cliente</button>
           </div>
 
@@ -275,6 +276,7 @@ function Tablero({ sesion, onSalir }) {
           onCreado={(datos) => { cargar(); abrir("credenciales", null, { ...datos, titulo: "Cliente dado de alta" }); }} />
       )}
       {modal?.tipo === "credenciales" && <ModalCredenciales datos={modal.datos} onCerrar={cerrar} />}
+      {modal?.tipo === "mis-empresas" && <ModalMisEmpresas onCerrar={cerrar} />}
       {modal?.tipo === "timbres" && <ModalTimbres cuenta={modal.cuenta} bolsa={bolsa} onCerrar={cerrar} onListo={alTerminar} />}
       {modal?.tipo === "vigencia" && <ModalVigencia cuenta={modal.cuenta} onCerrar={cerrar} onListo={alTerminar} />}
       {modal?.tipo === "historial" && <ModalHistorial cuenta={modal.cuenta} onCerrar={cerrar} />}
