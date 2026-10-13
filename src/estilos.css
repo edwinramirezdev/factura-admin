@@ -104,6 +104,18 @@ code { font-family: Consolas, "Cascadia Mono", monospace; font-size: 13px; }
 }
 .barra-sup .marca-sub { color: #94a3b8; }
 .barra-usuario { display: flex; align-items: center; gap: 12px; font-size: 13px; }
+.pestanas { display: flex; gap: 4px; margin-right: auto; margin-left: 12px; }
+.pestanas button {
+  display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px;
+  border: 0; border-radius: 8px; background: transparent; color: #cbd5e1; font: inherit; font-size: 14px; cursor: pointer;
+}
+.pestanas button:hover { background: rgba(255, 255, 255, 0.08); }
+.pestanas button.activa { background: rgba(255, 255, 255, 0.14); color: #fff; font-weight: 600; }
+.pestanas button:focus-visible { outline: 2px solid var(--primario); outline-offset: 2px; }
+.pestana-cuenta {
+  min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px;
+  background: #f59e0b; color: var(--oscuro); font-size: 12px; font-weight: 700; line-height: 20px; text-align: center;
+}
 .contenido { max-width: 1320px; margin: 0 auto; padding: 24px; display: flex; flex-direction: column; gap: 20px; }
 
 /* ── tarjetas ── */
@@ -241,7 +253,8 @@ td > .insignia:first-child { margin-left: 0; }
 
 /* ── pantallas angostas ── */
 @media (max-width: 720px) {
-  .barra-sup { padding: 10px 16px; }
+  .barra-sup { padding: 10px 16px; flex-wrap: wrap; }
+  .pestanas { order: 3; width: 100%; margin: 0; }
   .barra-usuario .tenue { display: none; }
   .contenido { padding: 16px; }
   .rejilla { grid-template-columns: 1fr; }

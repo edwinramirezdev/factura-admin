@@ -4,6 +4,7 @@ import { diasRestantes, fecha, num, nombrePlan } from "./utiles.js";
 import {
   ModalAlta, ModalCredenciales, ModalDetalle, ModalHistorial, ModalMisEmpresas, ModalTimbres, ModalVigencia,
 } from "./Modales.jsx";
+import Prospectos from "./Prospectos.jsx";
 
 // ───────────────────────────── inicio de sesión ─────────────────────────────
 function Login({ onEntrar, aviso }) {
@@ -131,10 +132,15 @@ function Tablero({ sesion, onSalir }) {
   const [busqueda, setBusqueda] = useState("");
   const [filtro, setFiltro] = useState("todos");
   const [modal, setModal] = useState(null); // { tipo, cuenta, datos }
+  const [seccion, setSeccion] = useState("clientes"); // "clientes" | "prospectos"
+  const [pendientes, setPendientes] = useState(null); // prospectos sin atender
+
+  const contarPendientes = useCallback((lista) => setPendientes(lista.filter((p) => !p.atendido).length), []);
 
   const cargar = useCallback(async () => {
     setCargando(true);
     setError("");
+    api("/admin/prospectos").then(contarPendientes).catch(() => {});
     try {
       const [r, c] = await Promise.all([api("/admin/resumen"), api("/admin/cuentas")]);
       setResumen(r);
@@ -144,7 +150,7 @@ function Tablero({ sesion, onSalir }) {
     } finally {
       setCargando(false);
     }
-  }, []);
+  }, [contarPendientes]);
 
   useEffect(() => { cargar(); }, [cargar]);
 
@@ -178,13 +184,27 @@ function Tablero({ sesion, onSalir }) {
             <div className="marca-sub">Sistema de Facturación CFDI</div>
           </div>
         </div>
+        <nav className="pestanas" aria-label="Secciones">
+          <button type="button" className={seccion === "clientes" ? "activa" : ""} aria-current={seccion === "clientes" ? "page" : undefined}
+            onClick={() => setSeccion("clientes")}>Clientes</button>
+          <button type="button" className={seccion === "prospectos" ? "activa" : ""} aria-current={seccion === "prospectos" ? "page" : undefined}
+            onClick={() => setSeccion("prospectos")}>
+            Prospectos{pendientes > 0 && <span className="pestana-cuenta" aria-label={`${pendientes} pendientes`}>{pendientes}</span>}
+          </button>
+        </nav>
         <div className="barra-usuario">
           <span className="tenue">{sesion?.usuario?.email || ""}</span>
           <button className="btn btn-fantasma" onClick={onSalir}>Salir</button>
         </div>
       </header>
 
-      <main className="contenido">
+      {seccion === "prospectos" && (
+        <main className="contenido">
+          <Prospectos onCambio={contarPendientes} />
+        </main>
+      )}
+
+      {seccion === "clientes" && <main className="contenido">
         <section className="tarjetas">
           <Tarjeta titulo="Clientes" valor={resumen ? num(resumen.clientes) : "…"}
             onClick={() => setFiltro("todos")} activa={filtro === "todos"} />
@@ -269,7 +289,7 @@ function Tablero({ sesion, onSalir }) {
             </div>
           )}
         </section>
-      </main>
+      </main>}
 
       {modal?.tipo === "alta" && (
         <ModalAlta bolsa={bolsa} onCerrar={cerrar}
