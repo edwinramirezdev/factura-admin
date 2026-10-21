@@ -5,6 +5,7 @@ import {
   ModalAlta, ModalCredenciales, ModalDetalle, ModalHistorial, ModalMisEmpresas, ModalTimbres, ModalVigencia,
 } from "./Modales.jsx";
 import Prospectos from "./Prospectos.jsx";
+import Nomina from "./Nomina.jsx";
 
 // ───────────────────────────── inicio de sesión ─────────────────────────────
 function Login({ onEntrar, aviso }) {
@@ -132,7 +133,7 @@ function Tablero({ sesion, onSalir }) {
   const [busqueda, setBusqueda] = useState("");
   const [filtro, setFiltro] = useState("todos");
   const [modal, setModal] = useState(null); // { tipo, cuenta, datos }
-  const [seccion, setSeccion] = useState("clientes"); // "clientes" | "prospectos"
+  const [seccion, setSeccion] = useState("clientes"); // "clientes" | "prospectos" | "nomina"
   const [pendientes, setPendientes] = useState(null); // prospectos sin atender
 
   const contarPendientes = useCallback((lista) => setPendientes(lista.filter((p) => !p.atendido).length), []);
@@ -191,6 +192,8 @@ function Tablero({ sesion, onSalir }) {
             onClick={() => setSeccion("prospectos")}>
             Prospectos{pendientes > 0 && <span className="pestana-cuenta" aria-label={`${pendientes} pendientes`}>{pendientes}</span>}
           </button>
+          <button type="button" className={seccion === "nomina" ? "activa" : ""} aria-current={seccion === "nomina" ? "page" : undefined}
+            onClick={() => setSeccion("nomina")}>Nómina</button>
         </nav>
         <div className="barra-usuario">
           <span className="tenue">{sesion?.usuario?.email || ""}</span>
@@ -201,6 +204,12 @@ function Tablero({ sesion, onSalir }) {
       {seccion === "prospectos" && (
         <main className="contenido">
           <Prospectos onCambio={contarPendientes} />
+        </main>
+      )}
+
+      {seccion === "nomina" && (
+        <main className="contenido">
+          <Nomina />
         </main>
       )}
 
