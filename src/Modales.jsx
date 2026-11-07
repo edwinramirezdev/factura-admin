@@ -623,7 +623,7 @@ function TablaEmpresas({ empresas, onCambio }) {
             <p>
               Tiene {num(e.comprobantes)} comprobante{e.comprobantes === 1 ? "" : "s"} timbrado{e.comprobantes === 1 ? "" : "s"}: se
               conservan guardados, pero el cliente dejará de ver la empresa, sus comprobantes, sus clientes y sus productos.
-              Se borra su certificado (CSD) y se libera un lugar de su plan. Podrás restaurarla después.
+              Su certificado (CSD) se da de baja también en el PAC y se libera un lugar de su plan. Podrás restaurarla después.
             </p>
           )}
           {eliminando && !e.comprobantes && (
