@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { api } from "./api.js";
+import { api, guardarSesion, sesionGuardada } from "./api.js";
 import {
   EMAIL_RE, PLANES, REGIMENES, RFC_RE, aFecha, fecha, fechaHora, fechaInput, nombrePlan, num, sumarMeses,
 } from "./utiles.js";
@@ -827,6 +827,83 @@ export function ModalDetalle({ cuenta, onCerrar, onCambio, onCredenciales }) {
             <button type="button" className="btn" onClick={() => setEditando(false)} disabled={ocupado}>Cancelar</button>
             <button className="btn btn-primario" disabled={ocupado}>{ocupado ? "Guardando…" : "Guardar cambios"}</button>
           </div>
+        </form>
+      )}
+    </Modal>
+  );
+}
+
+// ───────────────────────────── verificacion en dos pasos (TOTP) ─────────────────────────────
+export function ModalDosPasos({ onCerrar }) {
+  const [estado, setEstado] = useState(null);       // { activo, respaldo_restantes }
+  const [alta, setAlta] = useState(null);           // { secreto, qr_svg } mientras se configura
+  const [respaldo, setRespaldo] = useState(null);   // codigos de respaldo (se muestran una vez)
+  const [codigo, setCodigo] = useState("");
+  const [error, setError] = useState("");
+  const [ocupado, setOcupado] = useState(false);
+
+  const cargar = () => api("/admin/totp").then(setEstado).catch((e) => setError(e.message));
+  useEffect(() => { cargar(); }, []);
+
+  const correr = async (fn) => {
+    setOcupado(true); setError("");
+    try { await fn(); } catch (e) { setError(e.message); } finally { setOcupado(false); }
+  };
+  const iniciar = () => correr(async () => { setAlta(await api("/admin/totp/iniciar", { metodo: "POST" })); setCodigo(""); });
+  const activar = (e) => { e.preventDefault(); correr(async () => {
+    const r = await api("/admin/totp/activar", { metodo: "POST", cuerpo: { codigo: codigo.trim() } });
+    const s = sesionGuardada();
+    if (s && r.access_token) guardarSesion({ ...s, access_token: r.access_token });   // las demas sesiones se cerraron
+    setRespaldo(r.codigos_respaldo); setAlta(null); setCodigo(""); await cargar();
+  }); };
+  const desactivar = (e) => { e.preventDefault(); correr(async () => {
+    await api("/admin/totp/desactivar", { metodo: "POST", cuerpo: { codigo: codigo.trim() } });
+    setCodigo(""); await cargar();
+  }); };
+
+  return (
+    <Modal titulo="Verificación en dos pasos" subtitulo="Protege el acceso al portal con un código de tu celular" onCerrar={onCerrar} ancho={520}>
+      {error && <div className="alerta alerta-error">{error}</div>}
+      {!estado && !error && <p className="tenue">Cargando…</p>}
+
+      {respaldo && (
+        <div className="alerta">
+          <p><b>Guarda estos códigos de respaldo</b> en un lugar seguro (fuera de la computadora). Cada uno sirve una sola vez
+            si pierdes el celular. No se volverán a mostrar.</p>
+          <pre style={{ fontSize: 16, lineHeight: 1.6 }}>{respaldo.join("\n")}</pre>
+        </div>
+      )}
+
+      {estado && estado.activo && !respaldo && (
+        <form onSubmit={desactivar}>
+          <p>Está <b>activa</b>. Te quedan {estado.respaldo_restantes} códigos de respaldo.</p>
+          <p className="tenue">Para desactivarla (por ejemplo, al cambiar de celular) escribe un código de tu app o de respaldo.</p>
+          <label className="campo"><span>Código</span>
+            <input inputMode="numeric" value={codigo} onChange={(e) => setCodigo(e.target.value)} required />
+          </label>
+          <button className="btn" disabled={ocupado}>{ocupado ? "Desactivando…" : "Desactivar"}</button>
+        </form>
+      )}
+
+      {estado && !estado.activo && !alta && (
+        <div>
+          <p>Está <b>desactivada</b>. Al activarla, para entrar al portal se pedirá además un código de 6 dígitos de una app
+            como Google Authenticator o Authy.</p>
+          <button className="btn btn-primario" onClick={iniciar} disabled={ocupado}>{ocupado ? "Generando…" : "Activar"}</button>
+        </div>
+      )}
+
+      {alta && (
+        <form onSubmit={activar}>
+          <p>1. Escanea este código con tu app de autenticación.</p>
+          {/* SVG generado por el backend (qrcode), no viene de terceros */}
+          <div style={{ maxWidth: 220, background: "#fff", padding: 8 }} dangerouslySetInnerHTML={{ __html: alta.qr_svg }} />
+          <p className="tenue">¿No puedes escanearlo? Escribe esta clave: <code>{alta.secreto}</code></p>
+          <p>2. Escribe el código de 6 dígitos que muestra la app.</p>
+          <label className="campo"><span>Código</span>
+            <input inputMode="numeric" autoComplete="one-time-code" value={codigo} onChange={(e) => setCodigo(e.target.value)} required autoFocus />
+          </label>
+          <button className="btn btn-primario" disabled={ocupado}>{ocupado ? "Confirmando…" : "Confirmar y activar"}</button>
         </form>
       )}
     </Modal>

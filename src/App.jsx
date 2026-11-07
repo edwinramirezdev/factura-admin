@@ -3,6 +3,7 @@ import { api, guardarSesion, iniciarSesion, sesionGuardada } from "./api.js";
 import { diasRestantes, fecha, num, nombrePlan } from "./utiles.js";
 import {
   ModalAlta, ModalCredenciales, ModalDetalle, ModalHistorial, ModalMisEmpresas, ModalTimbres, ModalVigencia,
+  ModalDosPasos,
 } from "./Modales.jsx";
 import Prospectos from "./Prospectos.jsx";
 import Nomina from "./Nomina.jsx";
@@ -11,6 +12,8 @@ import Nomina from "./Nomina.jsx";
 function Login({ onEntrar, aviso }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [codigo, setCodigo] = useState("");
+  const [pideCodigo, setPideCodigo] = useState(false);   // verificacion en dos pasos activa
   const [error, setError] = useState(aviso || "");
   const [cargando, setCargando] = useState(false);
 
@@ -19,13 +22,14 @@ function Login({ onEntrar, aviso }) {
     setError("");
     setCargando(true);
     try {
-      const datos = await iniciarSesion(email.trim(), password);
+      const datos = await iniciarSesion(email.trim(), password, pideCodigo ? codigo.trim() : undefined);
       guardarSesion(datos);
       await api("/admin/resumen"); // confirma que es el superadministrador
       onEntrar(datos);
     } catch (err) {
       guardarSesion(null);
-      setError(err.message);
+      if (err.status === 428) { setPideCodigo(true); setError(""); }
+      else setError(err.message);
     } finally {
       setCargando(false);
     }
@@ -49,6 +53,14 @@ function Login({ onEntrar, aviso }) {
           <span>Contraseña</span>
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
         </label>
+        {pideCodigo && (
+          <label className="campo">
+            <span>Código de verificación</span>
+            <input inputMode="numeric" autoComplete="one-time-code" value={codigo} autoFocus required
+              placeholder="6 dígitos de tu app o un código de respaldo"
+              onChange={(e) => setCodigo(e.target.value)} />
+          </label>
+        )}
         {error && <div className="alerta alerta-error">{error}</div>}
         <button className="btn btn-primario btn-bloque" disabled={cargando}>
           {cargando ? "Entrando…" : "Entrar"}
@@ -197,6 +209,7 @@ function Tablero({ sesion, onSalir }) {
         </nav>
         <div className="barra-usuario">
           <span className="tenue">{sesion?.usuario?.email || ""}</span>
+          <button className="btn btn-fantasma" onClick={() => abrir("dos-pasos")}>Seguridad</button>
           <button className="btn btn-fantasma" onClick={onSalir}>Salir</button>
         </div>
       </header>
@@ -231,6 +244,23 @@ function Tablero({ sesion, onSalir }) {
             valor={!bolsa ? "…" : bolsa.error ? "—" : bolsa.ilimitado ? "Ilimitado" : num(bolsa.disponibles)}
             detalle={!bolsa ? "" : bolsa.error ? "SW no respondió" : `disponibles · ${num(bolsa.usados)} usados de ${num(bolsa.asignados)}`} />
         </section>
+
+        {resumen?.rfcs_duplicados?.length > 0 && (
+          <section className="panel">
+            <div className="panel-barra"><strong>RFC dados de alta en más de una cuenta</strong></div>
+            <p style={{ margin: "0 0 8px" }}>
+              Solo la cuenta que sube un CSD válido se queda con el RFC; las demás ya no pueden verificarlo.
+            </p>
+            <ul style={{ margin: 0, paddingLeft: 18 }}>
+              {resumen.rfcs_duplicados.map((d) => (
+                <li key={d.rfc}>
+                  <strong>{d.rfc}</strong>: {d.cuentas.join(", ")}
+                  {" · "}{d.verificada_en ? `verificado por ${d.verificada_en}` : "nadie lo ha verificado"}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         <section className="panel">
           <div className="panel-barra">
@@ -306,6 +336,7 @@ function Tablero({ sesion, onSalir }) {
       )}
       {modal?.tipo === "credenciales" && <ModalCredenciales datos={modal.datos} onCerrar={cerrar} />}
       {modal?.tipo === "mis-empresas" && <ModalMisEmpresas onCerrar={cerrar} />}
+      {modal?.tipo === "dos-pasos" && <ModalDosPasos onCerrar={cerrar} />}
       {modal?.tipo === "timbres" && <ModalTimbres cuenta={modal.cuenta} bolsa={bolsa} onCerrar={cerrar} onListo={alTerminar} />}
       {modal?.tipo === "vigencia" && <ModalVigencia cuenta={modal.cuenta} onCerrar={cerrar} onListo={alTerminar} />}
       {modal?.tipo === "historial" && <ModalHistorial cuenta={modal.cuenta} onCerrar={cerrar} />}

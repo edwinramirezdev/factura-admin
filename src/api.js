@@ -68,14 +68,14 @@ export async function api(ruta, { metodo = "GET", cuerpo } = {}) {
 }
 
 // Inicio de sesion con el mismo endpoint del sistema (acepta JSON o formulario).
-export async function iniciarSesion(email, password) {
+export async function iniciarSesion(email, password, codigoTotp) {
   const url = `${API_URL}/auth/login`;
   let r;
   try {
     r = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify(codigoTotp ? { email, password, codigo_totp: codigoTotp } : { email, password }),
     });
     if (r.status === 422) {
       r = await fetch(url, {
